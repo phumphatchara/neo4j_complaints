@@ -1,0 +1,95 @@
+#create a node influencer
+LOAD CSV WITH HEADERS FROM "file:///influence_data.csv" AS row
+WITH row WHERE toInteger(row.influencer_id) IS NOT NULL
+MERGE (influencer:Influencer {influencer_id:toInteger(row.influencer_id), influencer_name:row.influencer_name, influencer_main_genre:row.influencer_main_genre, influencer_active_start:toInteger(row.influencer_active_start)});
+
+#create a node follower
+LOAD CSV WITH HEADERS FROM "file:///influence_data.csv" AS row
+WITH row WHERE toInteger(row.follower_id) IS NOT NULL
+MERGE (follower:Follower {follower_id:toInteger(row.follower_id), follower_name:row.follower_name, follower_main_genre:row.follower_main_genre, follower_active_start:toInteger(row.follower_active_start)});
+
+
+#create a relationship with influencer and follower
+#follower to influencer
+
+LOAD CSV WITH HEADERS FROM "file:///influence_data.csv" AS row
+MATCH (influencer:Influencer {influencer_id:toInteger(row.influencer_id), influencer_name:row.influencer_name, follower_main_genre:row.follower_main_genre, influencer_active_start:toInteger(row.influencer_active_start)})
+MATCH (follower:Follower {follower_id:toInteger(row.follower_id), follower_name:row.follower_name, follower_main_genre:row.follower_main_genre, follower_active_start:toInteger(row.follower_active_start)})
+MERGE (follower)-[f:IS_FOLLOWER]->(influencer);
+
+#create a degree centrality
+#MATCH a Influencer
+MATCH (influencer:Influencer)
+RETURN influencer.influencer_name as name, influencer.follower_main_genre as name_main_genre, size((influencer)-[]-()) as drgree ORDER BY drgree  DESC
+LIMIT 10
+
+#MATCH a Follower  
+MATCH (follower:Follower)
+RETURN follower.follower_name as name, follower.follower_main_genre as name_main_genre , size((follower)-[]-()) as drgree ORDER BY drgree  DESC
+LIMIT 10
+
+#MATCH genre is Pop/Rock
+MATCH p=(follower)-[f:IS_FOLLOWER]->(influencer)
+where follower.follower_main_genre="Pop/Rock"
+RETURN p LIMIT 100
+
+#create a closeness centrality
+
+#closeness centrality of influencer
+CALL gds.alpha.closeness.stream({
+nodeProjection:"Influencer",
+relationshipProjection:"IS_FOLLOWER"
+})
+YIELD nodeId,centrality
+RETURN gds.util.asNode(nodeId).influencer_name as name, centrality
+ORDER BY centrality DESC LIMIT 10
+
+#closeness centrality of follower
+CALL gds.alpha.closeness.stream({
+nodeProjection:"Follower",
+relationshipProjection:"IS_FOLLOWER"
+})
+YIELD nodeId,centrality
+RETURN gds.util.asNode(nodeId).follower_name as name,centrality
+ORDER BY centrality DESC LIMIT 10
+
+#create a betweenness centrality
+
+CALL gds.betweenness.stream({
+ nodeProjection : '*',
+ relationshipProjection :{
+    similar: {
+        type : 'IS_FOLLOWER',
+        orientation : 'UNDIRECTED'
+    }
+  }
+})
+YIELD nodeId, score
+RETURN gds.util.asNode(nodeId).influencer_name as name,score
+ORDER BY score DESC LIMIT 10
+
+#Delete all nodes and relationships
+
+MATCH (n)
+DETACH DELETE (n)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
